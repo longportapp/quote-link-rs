@@ -1,0 +1,19 @@
+[package]
+name = "metrics"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+prometheus-client = "0.22.2"
+axum = "0.7.4"
+futures = "0.3.28"
+once_cell = "1.13.1"
+
+# workspace
+tracing = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+tracing-subscriber = "0.3.18"
+reqwest = { version = "0.11.21", default-features = false, features = ["rustls-tls", "json"] }

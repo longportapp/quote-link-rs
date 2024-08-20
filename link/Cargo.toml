@@ -12,7 +12,7 @@ prost = "0.13.1"
 deku = "0.17.0"
 ring = "0.17.8"
 mio = { version = "1.0.0", features = ["net", "os-poll"] }
-
+metrics = { path = "../metrics" }
 # workspace
 anyhow = { workspace = true }
 chrono = { workspace = true }

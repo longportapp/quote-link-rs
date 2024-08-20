@@ -1,14 +1,16 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+pub use convert::Quotation;
+pub use protos::LinkError;
+
+pub mod client;
+pub mod config;
+pub mod convert;
+pub mod packets;
+pub mod quotation {
+    include!(concat!(env!("OUT_DIR"), "/lb.quote.base.rs"));
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+mod transport;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+mod protos {
+    include!(concat!(env!("OUT_DIR"), "/control.rs"));
 }
