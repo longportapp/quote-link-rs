@@ -1,0 +1,444 @@
+syntax = "proto3";
+
+package lb.quote.base;
+option go_package = "./base";
+
+// 股票所属市场
+enum Market {
+  //未知
+  DEFAULT = 0;
+
+  // 美股
+  US = 1;
+
+  // 港股
+  HK = 2;
+
+  // 新加坡股
+  SG = 3;
+
+  // A 股
+  CN = 4;
+
+  // 日本
+  JPN = 5;
+
+  // 英国
+  UK = 6;
+
+  //俄罗斯
+  RUS = 7;
+
+  //印度
+  IND = 8;
+
+  //德国
+  GER = 9;
+
+  //意大利
+  ITA = 10;
+  // FTSE 指数
+  FTSE = 11;
+
+  //港股暗盘
+  GREYHK = 12;
+
+  //美股期权
+  OPRA = 13;
+}
+
+//标的类型
+enum StockType {
+  //UNKNOWN
+  UNKNOWN = 0;
+  //股票
+  ST = 1;
+
+  //ETF
+  ETF = 2;
+
+  //指数
+  IX = 3;
+
+  //板块指数
+  BK = 4;
+}
+
+//涨跌方向
+enum Direction {
+  //neutral
+  NEUTRAL = 0;
+
+  //down
+  DOWN = 1;
+
+  //up
+  UP = 2;
+}
+
+//买卖方向
+enum Side {
+  //中性
+  BALANCE = 0;
+
+  //主卖
+  SELL = 1;
+
+  //主买
+  BUY = 2;
+}
+
+enum TradeStatus {
+  // 占位
+  TS_UNKNOWN = 0;
+  // 清盘状态
+  PREPAREOPEN = 101;
+
+  // 开盘集合竞价
+  OPENAUCTION = 102;
+
+  // 交易中
+  TRADING = 105;
+
+  // 午间休市
+  MIDDLEREST = 106;
+
+  // 收盘集合竞价
+  CLOSEAUCTION = 107;
+
+  // 收盘
+  CLOSED = 108;
+
+  // 固定价格成交
+  TRADEATCLOSE = 120;
+
+  // 半日市已收盘
+  HALFTRADECLOSE = 121;
+
+  // 盘前（只有美股有）
+  PRETRADING = 201;
+
+  // 盘后（只有美股有）
+  POSTTRADING = 203;
+
+  //盘前清盘
+  PREPREPAREOPEN = 209;
+
+  //盘后清盘
+  POSTPREPAREOPEN = 210;
+
+  //  ---------------------------------------------------------------------------------
+  //  1000 以下的和市场状态保持一致，市场状态变更时股票状态同时变更
+  //  1000 以上的是特殊状态股票，不和全局市场状态保持一致
+  //  ---------------------------------------------------------------------------------
+
+  // 退市
+  DELISTED = 1001;
+
+  // 预备上市
+  PREPARELIST = 1002;
+
+  // 代码变更
+  CODEMOVED = 1003;
+
+  // 停牌
+  HALTED = 1004;
+
+  // 待开盘
+  TOBEOPENED = 1005;
+
+  //暗盘暂停
+  GREYHALTED = 1012;
+
+  //暗盘取消
+  GREYCANCELLED = 1013;
+
+  // 熔断
+  CIRCUITBREAKER = 2001;
+}
+
+//港股价差类型
+enum TickType {
+  A = 0;
+  B = 1;
+  C = 2;
+  D = 3;
+}
+
+//订单操作
+enum OrderOperation {
+  OP_UNKNOWN = 0;
+  OP_ADD = 1;
+  OP_CANCEL = 2;
+  OP_MODIFIED = 3;
+  OP_EXECUTED = 4;
+  OP_REPLACED = 5;
+}
+
+//kline类型，值同下游定义
+enum KlineType {
+  KLINE_TYPE_UNKNOWN = 0;
+  KLINE_TYPE_1MIN = 1;
+  KLINE_TYPE_5MIN = 5;
+  KLINE_TYPE_15MIN = 15;
+  KLINE_TYPE_30MIN = 30;
+  KLINE_TYPE_60MIN = 60;
+  KLINE_TYPE_DAY = 1000;
+  KLINE_TYPE_WEEK = 2000;
+  KLINE_TYPE_MONTH = 3000;
+}
+
+//流数据格式
+message Statistics {
+  message Detail {
+    int64 less_than_three = 1;
+    int64 three_to_five = 2;
+    int64 five_to_seven = 3;
+    int64 more_than_seven =4;
+    int64 halted = 5;
+  }
+  int64 rise = 1;
+  int64 flatline = 2;
+  int64 fall = 3;
+  Detail rise_detail = 4;
+  Detail fall_detail = 5;
+}
+
+//快照
+message Snapshot{
+  int64  src_id = 1;
+  string symbol = 2;
+  int64  last_done = 3;
+  int64  open = 4;
+  int64  high = 5;
+  int64  low = 6;
+  uint64 total_amount = 7;
+  uint64 total_balance = 8;
+  TradeStatus  trade_status = 9;
+  int64  timestamp = 10;
+  int64  sequence = 11;
+  bool   is_refresh = 12;
+  bool   is_eod = 13;
+  int64  open_interest = 14;
+  bool   is_cancel = 15;
+  int64  nominal_price = 16;
+  int64  auction_price = 17;
+  int64  condition_price = 18;
+  int32  tag = 19;
+  VCMMessage vcm_msg = 20;
+  ConnectTurnover conn_turnover = 21;
+  ConnectDailyInfo conn_daily_info = 22;
+  AuctionMessage auction_msg = 23;
+  RefrenceMessage ref_msg = 24;
+  int64 prev_close_price = 25;        //only for VA market
+}
+
+message Kline {
+  string symbol = 1;
+  KlineType line_type = 2;
+  int64 open = 3;             // all price is format by pow(10, price_decimal)
+  int64 high = 4;
+  int64 low = 5;
+  int64 close = 6;
+  uint64 amount = 7;           // all amount is format by pow(10, amount_decimal)
+  int64 timestamp = 8;        // begin timestamp for this kline range
+}
+
+message AuctionMessage {
+  int64 iep = 1;
+  int64 iev = 2;
+}
+
+message RefrenceMessage {
+  int64 limit_high = 1;
+  int64 limit_low = 2;
+  int64 ref_price = 3;
+}
+
+//盘口
+message Depth{
+  uint64 count = 1;     //委托笔数
+  uint64 amount = 2;    //股票数量
+  int64 price = 3;
+  bool top_level = 4;  //是否最高档位
+  bool need_send = 5;
+  int32 price_level = 6;
+}
+
+message Depths {
+  string symbol = 1;
+  int64 sequence = 2;
+  repeated Depth asks = 3;
+  repeated Depth bids = 4;
+  int64 src_id = 5;
+}
+
+message QueryDepths {
+  repeated Depths depths = 1;
+}
+
+//订单
+message Order {
+  int64 id = 1;
+  int64 price = 2;
+  int64 amount = 3;
+  int32 mp_id = 4;
+  OrderOperation operation = 5;
+  int64 timestamp = 6;
+  bool top_level = 7;
+}
+
+//订单账本
+message OrderBook {
+  string symbol = 1;
+  int64 sequence = 2;
+  int64 src_id = 3;
+  repeated Order asks = 4;
+  repeated Order bids = 5;
+  int32 tag = 6; //用于标识是不是首次推送需要覆盖内存数据,1表示是，0表示否。int32为未来拓展做准备
+}
+
+//成交明细
+message TradePrice{
+  int64  src_id = 1;
+  string symbol = 2;
+  int64  timestamp =3;
+  int64  price =4;
+  uint64 amount =5;
+  string type=6;
+  Side   side=7;
+  int64  sequence = 8;
+  uint64 total_amount = 9;
+  uint64 total_balance = 10;
+  int64  sale_condition = 11;
+  int64  open = 12;
+  int64  high = 13;
+  int64  low  = 14;
+  int64  open_interest = 15;
+  int32  exchange_id = 16;
+  int64  exchange_seq = 17;
+  int32  tag = 18;
+}
+
+//经济队列
+message Broker {
+  int32 level = 1;
+  repeated int32 brokers = 2;
+}
+
+message Brokers {
+  string symbol = 1;
+  int64 sequence = 2;
+  repeated Broker asks = 3;
+  repeated Broker bids = 4;
+  int64 src_id = 5;
+}
+
+message Heartbeat {
+  int64 timestamp = 1;
+  bool health =2;
+}
+
+message MarketInfo {
+  int32 trade_status = 1;
+  int64 start_at = 2;
+  int64 end_at = 3;
+  int64 timestamp = 4;
+}
+
+enum QuotationType {
+  QT_UNKNOWN  = 0;
+  SNAPSHOT = 1;
+  TRADE    = 2;
+  DEPTH    = 3;
+  BROKERS  = 4;
+  MARKETINFO = 5;
+  ORDERBOOK = 6;
+  KLINE = 7;
+}
+
+/*
+订阅行为
+1.全市场标的 全类型行情
+2.全市场标的 单类型行情
+3.部分标的   全类型行情
+4.部分标的   单类型行情
+5.分片标的   全类型行情
+6.分片标的   单类型行情
+
+CMDSUBALLTYPE    uint32 = 4
+CMDSUBSNAPSHOT          = 5
+CMDSUBDEPTHS            = 6
+CMDSUBBROKERS           = 7
+CMDSUBTRADE             = 8
+CMDSUNMARKETINFO        = 9
+*/
+message SubscribeRequest {
+  bool all = 1;
+  repeated string counter_ids = 2;
+  int64 span_index = 3;
+  bool need_trim = 4;
+  repeated QuotationType quotations = 5;
+}
+
+//按标的订阅时返回未成功订阅的标的 用于重试
+message SubscribeResponse {
+  repeated string success = 1;
+  repeated string failed = 2;
+}
+
+message UnsubscribeRequest {
+  bool all = 1;
+  repeated string counter_ids = 2;
+  int64 span_index = 3;
+}
+
+message UnsubscribeResponse {
+  repeated string success = 1;
+  repeated string failed = 2;
+}
+
+message VCMMessage {
+  int64 start = 1;
+  int64 end   = 2;
+  int64 reference = 3;
+  int64 high = 4;
+  int64 low = 5;
+}
+
+message ConnectTurnover {
+  int64 buy = 1;
+  int64 sell = 2;
+}
+
+message ConnectDailyInfo {
+  int64 quota = 1;
+  int64 balance = 2;
+}
+
+message OrderDetail {
+  int64 id = 1;
+  int64 volume = 2;
+  int64 mp_id = 3;
+}
+
+message OrderItem {
+  int64 price = 1;
+  int64 volume = 2;
+  int32 price_level = 3;
+  repeated OrderDetail details = 4;
+}
+
+message OrderArray {
+  int64 total_volume = 1;
+  repeated OrderItem orders = 2;
+}
+
+message OrderBookV2 {
+  string symbol = 1;
+  int64 src_id = 2;
+  OrderArray asks = 3;
+  OrderArray bids = 4;
+  int32 tag = 5;
+  int64 sequence = 6;
+}
