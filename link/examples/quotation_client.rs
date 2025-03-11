@@ -14,21 +14,9 @@ async fn main() {
         )
         .unwrap();
 
-    let rt = Box::leak(Box::new(
-        tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(1)
-            .enable_all()
-            .thread_name("bridge-thread")
-            .build()
-            .unwrap(),
-    ));
-
-    let mut quotation_push_rx = link::convert::to_quotation(push_rx, 1024, rt).await;
-
-    // 可以新起, 也可以通用, bridge rt 并无阻塞调用
-    rt.spawn(async move {
+    let mut quotation_push_rx = link::convert::to_quotation(push_rx, 1024).await;
+    tokio::spawn(async move {
         let mut ticker = tokio::time::interval(tokio::time::Duration::from_millis(500));
-
         loop {
             select! {
                 t = ticker.tick() => {

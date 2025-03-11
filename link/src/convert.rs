@@ -16,21 +16,17 @@ pub enum Quotation {
 pub async fn to_quotation(
     rx: std::sync::mpsc::Receiver<Vec<Packet>>,
     buf_size: usize,
-    rt: &'static tokio::runtime::Runtime,
 ) -> tokio::sync::broadcast::Receiver<Quotation> {
     let (async_tx, async_rx) = tokio::sync::broadcast::channel(buf_size);
-    std::thread::spawn(move || {
-        let async_tx = async_tx;
-        loop {
-            let moved_async_tx = async_tx.clone();
-            match rx.recv() {
-                Ok(packets) => {
-                    let mut wait_push = Vec::new();
+    tokio::task::spawn_blocking(move || loop {
+        let moved_async_tx = async_tx.clone();
+        match rx.recv() {
+            Ok(packets) => {
+                tokio::spawn(async move {
                     for packet in packets {
                         match packet {
                             Packet::Request(_) => {
                                 tracing::info!("link get request packet drop: {packet}");
-                                continue;
                             }
                             Packet::Response(response) => {
                                 tracing::info!("link get response packet: {response}");
@@ -43,17 +39,8 @@ pub async fn to_quotation(
                                         );
                                     };
                                 }
-                                continue;
                             }
                             Packet::Push(push) => {
-                                wait_push.push(push);
-                            }
-                        }
-                    }
-
-                    if !wait_push.is_empty() {
-                        rt.spawn(async move {
-                            for push in wait_push {
                                 if let Some(quotation) = parse_quotation(&push.msg_type, &push.body)
                                 {
                                     if let Err(e) = moved_async_tx.send(quotation) {
@@ -61,12 +48,12 @@ pub async fn to_quotation(
                                     }
                                 }
                             }
-                        });
+                        }
                     }
-                }
-                Err(e) => {
-                    tracing::error!("link sync chan recv err: {e:?}");
-                }
+                });
+            }
+            Err(e) => {
+                tracing::error!("link sync chan recv err: {e:?}");
             }
         }
     });
@@ -126,16 +113,15 @@ pub fn parse_quotation(msg_type: &MsgType, data: &Vec<u8>) -> Option<Quotation> 
 pub async fn asyncify(
     rx: std::sync::mpsc::Receiver<Vec<Packet>>,
     buf_size: usize,
-    rt: &'static tokio::runtime::Runtime,
 ) -> tokio::sync::broadcast::Receiver<Packet> {
     let (async_tx, async_rx) = tokio::sync::broadcast::channel(buf_size);
-    std::thread::spawn(move || {
+    tokio::task::spawn_blocking(move || {
         let async_tx = async_tx;
         loop {
             let moved_async_tx = async_tx.clone();
             match rx.recv() {
                 Ok(packets) => {
-                    rt.spawn(async move {
+                    tokio::task::spawn(async move {
                         for packet in packets {
                             if let Err(e) = moved_async_tx.send(packet) {
                                 tracing::error!("link sync chan to async one err: {e:#?}");

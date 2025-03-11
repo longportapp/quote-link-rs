@@ -111,11 +111,11 @@ impl Packet {
         })
     }
 
-    pub fn new_subscribe(cmd: Command) -> Self {
+    pub fn new_subscribe(cmd: Command, span_idx: i64) -> Self {
         let sub = SubscribeRequest {
             all: true,
             counter_ids: vec![],
-            span_index: 0,
+            span_index: span_idx,
         }
         .encode_to_vec();
 

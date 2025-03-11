@@ -1,8 +1,8 @@
 use prost::Message;
 use tokio::select;
 
-use link::LinkError;
 use link::packets::Packet;
+use link::LinkError;
 
 #[tokio::main]
 async fn main() {
@@ -18,16 +18,14 @@ async fn main() {
         )
         .unwrap();
 
-    let rt = Box::leak(Box::new(
-        tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(1)
-            .enable_all()
-            .thread_name("bridge-thread")
-            .build()
-            .unwrap(),
-    ));
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .thread_name("bridge-thread")
+        .build()
+        .unwrap();
 
-    let mut async_push_rx = link::convert::asyncify(push_rx, 1024, rt).await;
+    let mut async_push_rx = link::convert::asyncify(push_rx, 1024).await;
 
     // 可以新起, 也可以通用, bridge rt 并无阻塞调用
     rt.spawn(async move {
@@ -49,6 +47,16 @@ async fn main() {
                     }
                 }
             }
+        }
+    });
+
+    rt.spawn(async {
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            tracing::info!(
+                "runtime active ticker at: {:#?}",
+                std::time::SystemTime::now()
+            );
         }
     });
 

@@ -28,10 +28,17 @@ pub struct ClientConfig {
     // retry times 为 0 时, 表示无重试次数限制
     #[serde(default)]
     pub retry_times: i32,
+    #[serde(
+        default = "default_retry_interval",
+        deserialize_with = "deserialize_duration"
+    )]
+    pub retry_interval: Duration,
     #[serde(default = "default_timeout", deserialize_with = "deserialize_duration")]
     pub timeout: Duration,
     #[serde(default)]
     pub subscribe_cmds: Vec<Command>,
+    #[serde(default)]
+    pub span_index: i64,
     #[serde(default)]
     pub buf_mode: BufMode,
 }
@@ -49,4 +56,8 @@ fn pod_name() -> String {
 
 fn default_timeout() -> Duration {
     Duration::from_secs(5)
+}
+
+fn default_retry_interval() -> Duration {
+    Duration::from_secs(3)
 }

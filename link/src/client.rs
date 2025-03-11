@@ -15,7 +15,7 @@ const DEFAULT_MAX_IDLE_TIMEOUT: u64 = 2 * 1000; // link-go default value
 const DEFAULT_MAX_STREAM_CONN: u64 = 100;
 const DEFAULT_MAX_DATA_BUF_SIZE: u64 = 256 * (1 << 10 << 10); // 256Mi
 const DEFAULT_MAX_RECV_SEND_QUEUE_SIZE: usize = 1 << 16; // 65536 最大值
-const DEFAULT_MAX_STREAM_WINDOW_SIZE: u64 = 4 * (1 << 30) ; // 4G 与 go client 设置同样的参数
+const DEFAULT_MAX_STREAM_WINDOW_SIZE: u64 = 500 * (1 << 20); // 500Mi ves. to go client 4G 该值在消费过慢时, 会显著影响性能造成血崩
 
 pub struct QuicheConfigBuilder {
     quiche_config: quiche::Config,
@@ -41,7 +41,8 @@ impl QuicheConfigBuilder {
         self.quiche_config.verify_peer(false);
         self.quiche_config.set_disable_active_migration(true);
 
-        self.quiche_config.set_max_stream_window(DEFAULT_MAX_STREAM_WINDOW_SIZE);
+        self.quiche_config
+            .set_max_stream_window(DEFAULT_MAX_STREAM_WINDOW_SIZE);
         self.quiche_config
             .set_application_protos(&[b"quic-echo-example"])?;
         self.quiche_config
@@ -52,6 +53,8 @@ impl QuicheConfigBuilder {
             .set_max_send_udp_payload_size(MAX_PACKET_SIZE);
         self.quiche_config
             .set_initial_max_data(DEFAULT_MAX_DATA_BUF_SIZE);
+        self.quiche_config
+            .set_initial_max_stream_data_uni(DEFAULT_MAX_DATA_BUF_SIZE);
         self.quiche_config
             .set_initial_max_stream_data_bidi_local(DEFAULT_MAX_DATA_BUF_SIZE);
         self.quiche_config

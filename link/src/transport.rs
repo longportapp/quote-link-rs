@@ -19,7 +19,7 @@ use crate::packets::{
 use crate::protos::LinkError;
 
 const CLIENT: mio::Token = mio::Token(0);
-const DEFAULT_STREAM_ID: u64 = 0;
+const DEFAULT_CLIENT_TO_SERVER_STREAM_ID: u64 = 0;
 
 const DEFAULT_EVENT_SIZE: usize = 1024;
 
@@ -155,6 +155,9 @@ impl Transport {
 
                     self.conn_id.fetch_add(1, Ordering::Relaxed);
 
+                    // 避免异常情况下, 不间断的 reconnect 占用过多资源
+                    std::thread::sleep(self.client_config.retry_interval);
+
                     // will reconnect and notify
                     metrics::receive::receive_status_count(
                         &self.client_config.addr,
@@ -178,7 +181,7 @@ impl Transport {
             return true;
         };
 
-        return false;
+        false
     }
 
     pub fn quic_ctl_msg(
@@ -205,6 +208,9 @@ impl Transport {
             match socket.send_to(&control_buf[..write], send_info.to) {
                 Ok(v) => {
                     tracing::debug!("quic ctl socket send_to ok {v}");
+                    if v != write {
+                        tracing::error!("quic ctl socket send_to success size {v} not equal to data size {write}");
+                    };
                 }
                 Err(e) => {
                     if e.kind() == std::io::ErrorKind::WouldBlock {
@@ -274,7 +280,12 @@ impl Transport {
         }
 
         for cmd in &self.client_config.subscribe_cmds {
-            self.write_all(Packet::new_subscribe(cmd.clone()), buf, socket, conn)?
+            self.write_all(
+                Packet::new_subscribe(cmd.clone(), self.client_config.span_index),
+                buf,
+                socket,
+                conn,
+            )?
         }
 
         Ok(())
@@ -288,6 +299,7 @@ impl Transport {
         conn: &mut Connection,
     ) {
         if !conn.is_established() {
+            tracing::info!("conn not established, skip heartbeat");
             return;
         }
         if last_ping_at.elapsed() < DEFAULT_HEARTBEAT_INTERVAL {
@@ -326,7 +338,7 @@ impl Transport {
 
         poll.registry()
             .register(socket, CLIENT, mio::Interest::READABLE)
-            .unwrap();
+            .expect("register socket to poll get err");
 
         let mut send_auth_cmd = false;
 
@@ -338,11 +350,10 @@ impl Transport {
 
         let mut last_ping_at = Instant::now();
         let mut last_pong_at = Instant::now();
-        'poll: loop {
+        loop {
             if let Err(e) = poll.poll(&mut events, Some(DEFAULT_POLL_TIMEOUT)) {
                 tracing::error!("event poll get err: {e:#}");
-                // TOTO: how to reconnect
-                break 'poll;
+                return Err(anyhow::anyhow!("event poll get err: {e:#}"));
             };
 
             // 维护 quic 协议连接本身
@@ -383,8 +394,6 @@ impl Transport {
                 tracing::debug!("event loop read done");
             }
         }
-
-        Ok(())
     }
 
     fn is_timeout(&self, last_ping_at: &mut Instant, last_pong_at: &mut Instant) -> bool {
@@ -542,10 +551,6 @@ impl Transport {
                     }
                 };
 
-                // Reading data from a stream may trigger queueing of control messages (e. g. MAX_STREAM_DATA).
-                // send() should be called after reading.
-                self.quic_ctl_msg(socket, conn, write_buf)?;
-
                 self.consume_buf_process_packet(
                     last_ping_at,
                     last_pong_at,
@@ -560,6 +565,10 @@ impl Transport {
                     break 'parse;
                 }
             }
+
+            // Reading data from a stream may trigger queueing of control messages (e. g. MAX_STREAM_DATA).
+            // send() should be called after reading.
+            self.quic_ctl_msg(socket, conn, write_buf)?;
         }
 
         Ok(())
@@ -587,7 +596,7 @@ impl Transport {
 
         tracing::debug!("write all will write {packet}");
         let v = conn
-            .stream_send(DEFAULT_STREAM_ID, &b, false)
+            .stream_send(DEFAULT_CLIENT_TO_SERVER_STREAM_ID, &b, false)
             .context("write all stream send write to peer err")?;
         // TODO: stream send may not send all
         if v != b.len() {
