@@ -3,6 +3,7 @@ username: quote-demo
 password: quote-demo
 # retryTimes: 0 or not config means: not limit retry times
 retryTimes: 5
-clientName: quote-demo
+# clientName 需要使用username作为前缀，用于实例校验
+clientName: quote-demo 
 subscribeCmds: [ CmdSubAllType ]
 bufMode: ReadFirst
