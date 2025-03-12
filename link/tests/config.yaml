@@ -3,6 +3,6 @@ username: quote-demo
 password: quote-demo
 # retryTimes: 0 or not config means: not limit retry times
 retryTimes: 5
-clientName: quote-demo
+clientName: quote-demo # should has prefix of username
 subscribeCmds: [ CmdSubAllType ]
 bufMode: ReadFirst

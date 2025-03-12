@@ -2,3 +2,6 @@ Cargo.lock
 
 # build
 target/** 
+
+# data
+*.txt
