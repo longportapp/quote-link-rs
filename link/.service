@@ -1,0 +1,16 @@
+[Unit]
+Description=quotation_record
+After=network.target
+
+[Service]
+Type=simple
+Environment="HOME=/root"
+WorkingDirectory=/root/mm_test/qlr/link
+SyslogIdentifier=quotation_record
+ExecStart=/root/.cargo/bin/cargo run --example quotation_record
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=no
+
+[Install]
+WantedBy=multi-user.target
+
