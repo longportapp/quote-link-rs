@@ -6,7 +6,7 @@ use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::histogram::Histogram;
 use prometheus_client::registry::Registry;
 
-use crate::{LATENCY_BUCKET, StreamLabel};
+use crate::{StreamLabel, LATENCY_BUCKET};
 
 pub fn receive_count(upstream: &str, sample: &str) {
     RECEIVE_COUNTER
@@ -67,15 +67,19 @@ pub(crate) fn register(reg: &mut Registry) {
     );
 }
 
+#[allow(clippy::type_complexity)]
 pub(crate) static RECEIVE_COUNTER: Lazy<Family<StreamLabel, Counter, fn() -> Counter>> =
     Lazy::new(Family::<StreamLabel, Counter>::default);
 
+#[allow(clippy::type_complexity)]
 pub(crate) static RECEIVE_BYTES_COUNTER: Lazy<Family<StreamLabel, Counter, fn() -> Counter>> =
     Lazy::new(Family::<StreamLabel, Counter>::default);
 
+#[allow(clippy::type_complexity)]
 pub(crate) static RECEIVE_STATUS_COUNTER: Lazy<Family<StreamLabel, Counter, fn() -> Counter>> =
     Lazy::new(Family::<StreamLabel, Counter>::default);
 
+#[allow(clippy::type_complexity)]
 pub(crate) static RECEIVE_LATENCY_HISTOGRAM: Lazy<
     Family<StreamLabel, Histogram, fn() -> Histogram>,
 > = Lazy::new(|| {

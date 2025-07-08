@@ -21,6 +21,12 @@ pub struct QuicheConfigBuilder {
     quiche_config: quiche::Config,
 }
 
+impl Default for QuicheConfigBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl QuicheConfigBuilder {
     pub fn new() -> Self {
         Self {

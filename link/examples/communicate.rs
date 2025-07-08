@@ -59,7 +59,11 @@ fn main() {
         let greet = rx.recv().unwrap();
         tracing::info!("runtime loop 1 in thread({thread_name}) rx received with: {greet}");
 
-        tx2.send(format!("Hello from runtime loop 1, its thread name: {thread_name}")).await.unwrap();
+        tx2.send(format!(
+            "Hello from runtime loop 1, its thread name: {thread_name}"
+        ))
+        .await
+        .unwrap();
     });
 
     // 在单独的线程中，再拉起个 runtime
@@ -70,14 +74,14 @@ fn main() {
             .build()
             .unwrap();
 
-        rt2.block_on(async  {
+        rt2.block_on(async {
             let thread_name = std::thread::current().name().unwrap().to_string();
             let greet = rx2.recv().await.unwrap();
             tracing::info!("runtime thread({thread_name}) rx2 received with: {greet}");
         })
     });
 
-    _ = job.join().unwrap();
+    job.join().unwrap();
     rt1.block_on(async {
         tokio::time::sleep(Duration::from_secs(10)).await;
     })

@@ -2,10 +2,14 @@
 resolver = "2"
 members = [
     "link",
+    "metrics",
 ]
 
 [workspace.dependencies]
-tracing = { version = "0.1.40", features = ["log"] }
-chrono = "0.4.31"
-anyhow = "1.0.69"
+tracing = { version = "0.1.41", features = ["log"] }
+chrono = "0.4.41"
+anyhow = "1.0.98"
 tokio = { version = "1", features = ["full"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_yaml = "0.9.34"
+reqwest = "0.11.18"
