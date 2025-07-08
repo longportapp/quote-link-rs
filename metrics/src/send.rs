@@ -5,7 +5,7 @@ use prometheus_client::metrics::histogram::Histogram;
 use prometheus_client::registry::Registry;
 use std::time::Duration;
 
-use crate::{LATENCY_BUCKET, StreamLabel};
+use crate::{StreamLabel, LATENCY_BUCKET};
 
 pub fn send_count(upstream: &str, sample: &str) {
     SEND_COUNTER
@@ -20,7 +20,8 @@ pub fn send_bytes_count(upstream: &str, sample: &str, bytes_size: u64) {
     SEND_BYTES_COUNTER
         .get_or_create(&StreamLabel {
             upstream: upstream.to_string(),
-            sample: sample.to_string(), })
+            sample: sample.to_string(),
+        })
         .inc_by(bytes_size);
 }
 
@@ -65,15 +66,19 @@ pub(crate) fn register(reg: &mut Registry) {
     );
 }
 
+#[allow(clippy::type_complexity)]
 pub(crate) static SEND_COUNTER: Lazy<Family<StreamLabel, Counter, fn() -> Counter>> =
     Lazy::new(Family::<StreamLabel, Counter>::default);
 
+#[allow(clippy::type_complexity)]
 pub(crate) static SEND_BYTES_COUNTER: Lazy<Family<StreamLabel, Counter, fn() -> Counter>> =
     Lazy::new(Family::<StreamLabel, Counter>::default);
 
+#[allow(clippy::type_complexity)]
 pub(crate) static SEND_STATUS_COUNTER: Lazy<Family<StreamLabel, Counter, fn() -> Counter>> =
     Lazy::new(Family::<StreamLabel, Counter>::default);
 
+#[allow(clippy::type_complexity)]
 pub(crate) static SEND_LATENCY_HISTOGRAM: Lazy<Family<StreamLabel, Histogram, fn() -> Histogram>> =
     Lazy::new(|| {
         Family::<StreamLabel, Histogram>::new_with_constructor(|| {

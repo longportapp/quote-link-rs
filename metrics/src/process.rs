@@ -6,7 +6,7 @@ use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::histogram::Histogram;
 use prometheus_client::registry::Registry;
 
-use crate::{LATENCY_BUCKET, StreamLabel, StreamWithMsgLabel};
+use crate::{StreamLabel, StreamWithMsgLabel, LATENCY_BUCKET};
 
 pub fn operation_count(upstream: &str, sample: &str) {
     OPERATION_COUNTER
@@ -72,11 +72,13 @@ static OPERATION_COUNTER: Lazy<Family<StreamLabel, Counter>> = Lazy::new(Family:
 
 static EXCEPTION_COUNTER: Lazy<Family<StreamWithMsgLabel, Counter>> = Lazy::new(Family::default);
 
+#[allow(clippy::type_complexity)]
 static COST_MICRO_SEC_HISTOGRAM: Lazy<Family<StreamLabel, Histogram, fn() -> Histogram>> =
     Lazy::new(|| {
         Family::new_with_constructor(|| Histogram::new(LATENCY_BUCKET.clone().into_iter()))
     });
 
+#[allow(clippy::type_complexity)]
 static COST_MILLI_SEC_HISTOGRAM: Lazy<Family<StreamLabel, Histogram, fn() -> Histogram>> =
     Lazy::new(|| {
         Family::new_with_constructor(|| Histogram::new(LATENCY_BUCKET.clone().into_iter()))

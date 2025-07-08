@@ -424,6 +424,7 @@ impl Transport {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn read_loop(
         &mut self,
         socket: &UdpSocket,
@@ -517,6 +518,7 @@ impl Transport {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn application_read(
         &mut self,
         socket: &UdpSocket,
@@ -640,6 +642,7 @@ impl Transport {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn consume_buf_process_packet(
         &mut self,
         last_ping_at: &mut Instant,
@@ -656,7 +659,7 @@ impl Transport {
             // 避免 packet_buf + data_buf 溢出
             if !consumed_data
                 && *packet_size + data_buf.len() < packet_buf.len()
-                && data_buf.len() != 0
+                && !data_buf.is_empty()
             {
                 consumed_data = true;
                 packet_buf[*packet_size..(*packet_size + data_buf.len())].copy_from_slice(data_buf);

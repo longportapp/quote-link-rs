@@ -64,3 +64,17 @@ pub(crate) static WARNING_MSG_COUNTER: Lazy<Family<LogLabel, Counter>> = Lazy::n
 pub(crate) static FATAL_MSG_COUNTER: Lazy<Family<LogLabel, Counter>> = Lazy::new(Family::default);
 
 pub(crate) static MSG_GAUGE: Lazy<Family<LogLabel, Gauge>> = Lazy::new(Family::default);
+
+#[cfg(test)]
+mod test {
+    use super::{fatal_msg_count, info_msg_count, msg_gauge, warning_msg_count};
+
+    #[test]
+    fn test_for_build() {
+        info_msg_count("info msg count");
+        warning_msg_count("warning msg count");
+        fatal_msg_count("fatal msg count");
+        warning_msg_count("warning msg count");
+        msg_gauge("msg count", 1);
+    }
+}
