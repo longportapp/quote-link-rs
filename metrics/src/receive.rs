@@ -46,7 +46,7 @@ pub fn receive_at_latency(upstream: &str, sample: &str, cost: Duration) {
 
 pub(crate) fn register(reg: &mut Registry) {
     reg.register(
-        "upstream_data_receive_total",
+        "upstream_data_receive",
         "How many data received from upstream",
         RECEIVE_COUNTER.clone(),
     );

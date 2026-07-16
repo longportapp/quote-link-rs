@@ -1,11 +1,9 @@
-use std::fmt::{Display, Formatter};
-use std::sync::atomic::{AtomicU32, Ordering};
-
+use crate::protos::{AuthInfo, AuthRequest, Heartbeat, SubscribeRequest};
+use crate::quotation::{Brokers, Depths, Kline, OrderBookV2, Snapshot, TradePrice};
 use deku::prelude::*;
 use prost::Message;
 use serde::{Deserialize, Serialize};
-
-use crate::protos::*;
+use std::fmt::{Display, Formatter};
 
 const DEFAULT_REQUEST_TIMEOUT: u8 = 5;
 
@@ -17,17 +15,15 @@ const PUSH_HEADER_SIZE: usize = 5;
 
 pub(crate) const MIN_PACKET_HEADER_SIZE: usize = 5;
 
-pub(crate) fn idgen() -> u32 {
-    static IDGEN: AtomicU32 = AtomicU32::new(0);
-    IDGEN.fetch_add(1, Ordering::Relaxed) & 0x00ff_ffff
+pub fn request_id_trim(id: u32) -> u32 {
+    // request id 24bit 3bytes
+    id & 0x00ff_ffff
 }
 
-pub(crate) fn unix_nano() -> i64 {
-    chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+pub(crate) fn unix_micros() -> i64 {
+    chrono::Utc::now().timestamp_micros()
 }
 
-/// 解析规则:
-/// TODO 补充协议文档说明
 #[derive(Clone, Debug, PartialEq, Eq, DekuRead, DekuWrite)]
 #[deku(id_type = "u8", bits = 2)]
 pub enum Packet {
@@ -80,22 +76,33 @@ impl Packet {
 }
 
 impl Packet {
-    pub fn new_request(cmd: Command, body: Vec<u8>) -> Self {
+    pub fn new_request(cmd: Command, id: u32, body: Vec<u8>) -> Self {
         Self::Request(Request {
             reserved: 0,
             command: cmd,
-            id: idgen(),
+            id: request_id_trim(id),
             timeout: DEFAULT_REQUEST_TIMEOUT,
             body_len: body.len() as u32,
             body,
         })
     }
 
-    pub fn new_auth(user_name: &str, password: &str, client_name: &str) -> Self {
+    pub fn new_response_from(req: &Request, status: ResponseStatus, body: Vec<u8>) -> Self {
+        Self::Response(Response {
+            reserved: 0,
+            command: req.command,
+            id: req.id,
+            status,
+            body_len: body.len() as u32,
+            body,
+        })
+    }
+
+    pub fn new_auth(id: u32, username: &str, password: &str, client_name: &str) -> Self {
         let auth = AuthRequest {
             auth_info: Some(AuthInfo {
-                user_name: user_name.to_string(),
-                passward: password.to_string(),
+                user_name: username.to_string(),
+                password: password.to_string(),
                 client_name: client_name.to_string(),
             }),
         }
@@ -104,46 +111,55 @@ impl Packet {
         Self::Request(Request {
             reserved: 0,
             command: Command::Auth,
-            id: idgen(),
+            id: request_id_trim(id),
             timeout: DEFAULT_REQUEST_TIMEOUT,
             body_len: auth.len() as u32,
             body: auth,
         })
     }
 
-    pub fn new_subscribe(cmd: Command, span_idx: i64) -> Self {
+    pub fn new_subscribe(cmd: Command, id: u32, sub_all: bool, span_idx: i64) -> Self {
         let sub = SubscribeRequest {
-            all: true,
+            all: sub_all,
             counter_ids: vec![],
             span_index: span_idx,
         }
         .encode_to_vec();
 
-        tracing::info!("new subscribe data: {:?}", cmd);
-
         Self::Request(Request {
             reserved: 0,
             command: cmd,
-            id: idgen(),
+            id: request_id_trim(id),
             timeout: DEFAULT_REQUEST_TIMEOUT,
             body_len: sub.len() as u32,
             body: sub,
         })
     }
 
-    pub fn new_heartbeat() -> Self {
-        let heartbeat = Heartbeat {
-            timestamp: unix_nano(),
+    pub fn new_heartbeat(id: u32) -> Self {
+        let raw_body = Heartbeat {
+            timestamp: unix_micros(),
         }
         .encode_to_vec();
 
         Self::Request(Request {
             reserved: 0,
             command: Command::Heartbeat,
-            id: idgen(),
+            id: request_id_trim(id),
             timeout: DEFAULT_REQUEST_TIMEOUT,
-            body_len: heartbeat.len() as u32,
-            body: heartbeat,
+            body_len: raw_body.len() as u32,
+            body: raw_body,
+        })
+    }
+
+    pub fn new_heartbeat_response(req: Request) -> Self {
+        Self::Response(Response {
+            reserved: 0,
+            command: Command::Heartbeat,
+            id: req.id,
+            status: ResponseStatus::Success,
+            body_len: req.body_len,
+            body: req.body,
         })
     }
 }
@@ -154,10 +170,7 @@ impl Packet {
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 /// |typ|res|cmd_cod|           request_id                          |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-///  time_out       |    timestamp                                  |
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-/// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-///                 |              body_len                         |
+///  time_out       |              body_len                         |
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ///                          body(mutable)
 /// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -186,7 +199,7 @@ impl Display for Request {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, DekuRead, DekuWrite, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, DekuRead, DekuWrite, Serialize, Deserialize)]
 #[deku(
     id_type = "u8",
     bits = 4,
@@ -213,8 +226,6 @@ pub enum Command {
     CmdUnSubDepth = 11,
     CmdSubMarketInfo = 12,
     CmdUnSubBrokers = 13,
-
-    StatusNotify = 101,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DekuRead, DekuWrite)]
@@ -230,6 +241,19 @@ pub struct Response {
     pub body_len: u32,
     #[deku(count = "body_len")]
     pub body: Vec<u8>,
+}
+
+impl Response {
+    pub fn new(cmd: Command, id: u32, status: ResponseStatus, body: Vec<u8>) -> Self {
+        Self {
+            reserved: 0,
+            command: cmd,
+            id,
+            status,
+            body_len: body.len() as u32,
+            body,
+        }
+    }
 }
 
 impl Display for Response {
@@ -255,7 +279,7 @@ pub struct Push {
     pub body: Vec<u8>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, DekuRead, DekuWrite)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, DekuRead, DekuWrite, Serialize, Deserialize)]
 #[deku(id_type = "u8", endian = "endian", ctx = "endian: deku::ctx::Endian")]
 // 该 type 同 proto 的 QuotationType
 pub enum MsgType {
@@ -265,7 +289,7 @@ pub enum MsgType {
     Depths = 3,
     Brokers = 4,
     MarketInfo = 5,
-    OrderBookV2 = 6,
+    OrderBook = 6,
     Kline = 7,
 }
 
@@ -339,4 +363,87 @@ pub(crate) struct PushHeader {
     pub msg_type: MsgType,
     #[deku(bits = "24")]
     pub body_len: u32,
+}
+
+#[derive(Clone, Debug)]
+pub enum Quotation {
+    Trade(TradePrice),
+    Price(Snapshot),
+    Depth(Depths),
+    Broker(Brokers),
+    KLine(Kline),
+    OrderBook(OrderBookV2),
+}
+
+impl Quotation {
+    pub fn msg_type(&self) -> MsgType {
+        match self {
+            Quotation::Trade(_) => MsgType::Trade,
+            Quotation::Price(_) => MsgType::Snapshot,
+            Quotation::Depth(_) => MsgType::Depths,
+            Quotation::Broker(_) => MsgType::Brokers,
+            Quotation::KLine(_) => MsgType::Kline,
+            Quotation::OrderBook(_) => MsgType::OrderBook,
+        }
+    }
+
+    pub fn encode_to_vec(&self) -> Vec<u8> {
+        match self {
+            Quotation::Trade(data) => data.encode_to_vec(),
+            Quotation::Price(data) => data.encode_to_vec(),
+            Quotation::Depth(data) => data.encode_to_vec(),
+            Quotation::Broker(data) => data.encode_to_vec(),
+            Quotation::KLine(data) => data.encode_to_vec(),
+            Quotation::OrderBook(data) => data.encode_to_vec(),
+        }
+    }
+}
+
+pub fn parse_quotation(msg_type: &MsgType, data: &Vec<u8>) -> Option<Quotation> {
+    match msg_type {
+        MsgType::Unknown => None,
+        MsgType::Snapshot => Snapshot::decode(data.as_ref()).map_or_else(
+            |e| {
+                tracing::error!("link parse price err: {e:?}");
+                None
+            },
+            |data| Some(Quotation::Price(data)),
+        ),
+        &MsgType::Trade => TradePrice::decode(data.as_ref()).map_or_else(
+            |e| {
+                tracing::error!("link parse trade err: {e:?}");
+                None
+            },
+            |data| Some(Quotation::Trade(data)),
+        ),
+        MsgType::Depths => Depths::decode(data.as_ref()).map_or_else(
+            |e| {
+                tracing::error!("link parse depth err: {e:?}");
+                None
+            },
+            |data| Some(Quotation::Depth(data)),
+        ),
+        MsgType::Brokers => Brokers::decode(data.as_ref()).map_or_else(
+            |e| {
+                tracing::error!("link parse broker err: {e:?}");
+                None
+            },
+            |data| Some(Quotation::Broker(data)),
+        ),
+        MsgType::MarketInfo => None,
+        MsgType::OrderBook => OrderBookV2::decode(data.as_ref()).map_or_else(
+            |e| {
+                tracing::error!("link parse order book err: {e:?}");
+                None
+            },
+            |data| Some(Quotation::OrderBook(data)),
+        ),
+        MsgType::Kline => Kline::decode(data.as_ref()).map_or_else(
+            |e| {
+                tracing::error!("link parse kline err: {e:?}");
+                None
+            },
+            |data| Some(Quotation::KLine(data)),
+        ),
+    }
 }

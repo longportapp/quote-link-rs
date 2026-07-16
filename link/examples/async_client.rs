@@ -1,64 +1,66 @@
-use prost::Message;
-use tokio::select;
-
-use link::packets::Packet;
-use link::LinkError;
+// Minimal demo: connect and consume raw `Packet`s (no quotation parsing) as an
+// async broadcast stream. For parsed quotations, see examples/quotation_client.rs;
+// for the fuller demo, see examples/client.rs.
+use async_trait::async_trait;
+use link::{
+    client::{Client, ClientConnEvent, LinkConsumer},
+    packets::{Packet, Push, Request, Response},
+};
+use std::net::SocketAddr;
+use tokio::sync::broadcast;
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
+    let client_config = link::config::read_from_filepath("tests/config.yaml").unwrap();
 
-    let client_config = link::config::get_from_filepath("tests/config.yaml").unwrap();
-    let cli = link::client::Client::new(client_config);
-    let push_rx = cli
-        .connect(
-            link::client::QuicheConfigBuilder::new()
-                .build_in_recommend()
-                .unwrap(),
-        )
-        .unwrap();
-
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(1)
-        .enable_all()
-        .thread_name("bridge-thread")
-        .build()
-        .unwrap();
-
-    let mut async_push_rx = link::convert::asyncify(push_rx, 1024).await;
-
-    // 可以新起, 也可以通用, bridge rt 并无阻塞调用
-    rt.spawn(async move {
-        let mut ticker = tokio::time::interval(tokio::time::Duration::from_millis(500));
-
+    let (packet_tx, mut packet_rx) = broadcast::channel::<Packet>(1024);
+    tokio::spawn(async move {
         loop {
-            select! {
-                t = ticker.tick() => {
-                    tracing::debug!("async select ticker active at: {t:?}");
+            match packet_rx.recv().await {
+                Ok(packet) => tracing::info!("recv packet: {packet}"),
+                Err(broadcast::error::RecvError::Lagged(n)) => {
+                    tracing::info!("packet recv chan lagged: {n}");
                 }
-
-                p = async_push_rx.recv() => {
-                    if let Ok(packet) = p {
-                        tracing::info!("async select recv packet: {packet}");
-                        if let Packet::Response(response) = packet {
-                            let err_msg =  LinkError::decode(response.body.as_ref());
-                            tracing::info!("async select recv packet its response: {err_msg:?}");
-                        }
-                    }
+                Err(broadcast::error::RecvError::Closed) => {
+                    tracing::error!("packet recv chan closed");
+                    break;
                 }
             }
         }
     });
 
-    rt.spawn(async {
-        loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            tracing::info!(
-                "runtime active ticker at: {:#?}",
-                std::time::SystemTime::now()
-            );
-        }
-    });
+    let cli = Client::new(client_config);
+    match cli.link(move |_| Consumer { packet_tx }).await {
+        Ok(Ok(_)) => tracing::info!("link client link task exit with ok"),
+        Ok(Err(err)) => tracing::error!("link client link task exit with err: {err:#}"),
+        Err(err) => tracing::error!("link client await link task get err: {err:#}"),
+    };
+}
 
-    tokio::time::sleep(tokio::time::Duration::from_secs(100)).await;
+struct Consumer {
+    packet_tx: broadcast::Sender<Packet>,
+}
+
+#[async_trait]
+impl LinkConsumer for Consumer {
+    async fn on_conn_event(&self, event: ClientConnEvent) {
+        tracing::info!("on conn event: {event:?}");
+    }
+
+    async fn on_connected(&self, peer: SocketAddr) {
+        tracing::info!("on connected peer: {peer}");
+    }
+
+    async fn on_push(&self, push: Push) {
+        let _ = self.packet_tx.send(Packet::Push(push));
+    }
+
+    async fn on_response(&self, response: Response) {
+        let _ = self.packet_tx.send(Packet::Response(response));
+    }
+
+    async fn on_request(&self, request: Request) {
+        let _ = self.packet_tx.send(Packet::Request(request));
+    }
 }

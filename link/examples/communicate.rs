@@ -4,9 +4,10 @@ use std::thread::sleep;
 use tokio::select;
 use tokio::time::Duration;
 
-// 结论:
+// NOTES:
 // 1. 在 tokio 中调用 std::sync::mpsc 中阻塞 recv 会阻塞整个事件循环
 // 2. 运行在不同事件循环中的 tokio::sync::mpsc 可以正常被调度 (传递消息)
+// 3. 一般不推荐在 runtime 中再拉 runtime, 除非你理解 "Runtime" 的使用禁忌, 并明白为什么需要这么做
 fn main() {
     tracing_subscriber::fmt::init();
 
