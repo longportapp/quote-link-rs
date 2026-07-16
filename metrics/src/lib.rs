@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use axum::body::Body;
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
@@ -41,7 +42,9 @@ pub async fn register_and_server_at(
         tracing::info!("metric server path is empty, fallback to {DEFAULT_METRIC_ROUTE_PATH}");
         path = DEFAULT_METRIC_ROUTE_PATH;
     }
-    let router = Router::new().route(path, get(MetricHandler::new(reg)));
+    let router = Router::new()
+        .route(path, get(MetricHandler::new(reg)))
+        .route("/healthz", get(healthy_check));
 
     if addr.is_empty() {
         tracing::info!("metric server addr is empty, fallback to {DEFAULT_METRIC_SERVER_AT}");
@@ -83,6 +86,10 @@ async fn shutdown_signal() {
     }
     tracing::info!("metric server get shutdown signal, end its life")
 }
+pub async fn healthy_check() -> (StatusCode, &'static str) {
+    (StatusCode::OK, "Hello I'm fine!")
+}
+
 #[derive(Clone)]
 struct MetricHandler(Arc<Registry>);
 
@@ -105,6 +112,12 @@ impl<S> axum::handler::Handler<(), S> for MetricHandler {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 pub(crate) struct StreamLabel {
     pub upstream: String,
+    pub sample: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+pub(crate) struct DownstreamLabel {
+    pub downstream: String,
     pub sample: String,
 }
 

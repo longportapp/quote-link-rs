@@ -1,10 +1,10 @@
-use link::config;
+use link::config::{self, LinkClientConfig};
 
 #[test]
-fn get_from_filepath() {
-    let mut c = config::get_from_filepath("tests/not_exist");
+fn read_from_filepath() {
+    let c = config::read_from_filepath::<LinkClientConfig>("tests/not_exist");
     assert!(c.is_err());
 
-    c = config::get_from_filepath("tests/config.yaml");
+    let c = config::read_from_filepath::<LinkClientConfig>("tests/config.yaml");
     assert!(c.is_ok());
 }
